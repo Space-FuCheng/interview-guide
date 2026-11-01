@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('help', 'init', 'doctor', 'infra', 'stop-infra', 'backend', 'frontend', 'check')]
+  [ValidateSet('help', 'init', 'doctor', 'infra', 'stop-infra', 'backend', 'frontend', 'check', 'start', 'status', 'stop')]
   [string]$Command = 'help'
 )
 
@@ -115,6 +115,9 @@ try {
   switch ($Command) {
     'help' {
       Write-Host 'InterviewGuide learning environment'
+      Write-Host '  .\dev.cmd start       Start infrastructure, backend and frontend in the background'
+      Write-Host '  .\dev.cmd status      Show application health and launcher ownership'
+      Write-Host '  .\dev.cmd stop        Stop only applications started by this launcher'
       Write-Host '  .\dev.cmd init        Create local configuration if it is missing'
       Write-Host '  .\dev.cmd doctor      Check tools and configuration presence'
       Write-Host '  .\dev.cmd infra       Start the isolated learning infrastructure'
@@ -165,7 +168,7 @@ try {
       Require-LocalConfig
       $docker = Require-Command 'docker.exe'
       $composeArguments = @('compose', '-p', 'interview-guide-learning', '-f', 'compose.learning.yml', '--env-file', '.env')
-      if ($Command -eq 'infra') { $composeArguments += @('up', '-d', '--wait') }
+      if ($Command -eq 'infra') { $composeArguments += @('up', '-d', '--wait', '--wait-timeout', '120') }
       else { $composeArguments += 'stop' }
       Invoke-Checked $docker $composeArguments
     }
@@ -173,6 +176,9 @@ try {
       Require-LocalConfig
       Use-Java25
       $applicationArguments = @('--app.voice-interview.opening-audio-warmup-enabled=false')
+      if ($env:INTERVIEW_GUIDE_LAUNCH_ID) {
+        $applicationArguments += ('--learning.launch-id=' + $env:INTERVIEW_GUIDE_LAUNCH_ID)
+      }
       if ([string]::IsNullOrWhiteSpace((Get-ConfigValue 'AI_BAILIAN_API_KEY'))) {
         Write-Host 'Starting without a model key. AI analysis and voice features remain unconfigured.'
         $applicationArguments += @(
@@ -186,9 +192,11 @@ try {
       $pnpm = Require-Command 'pnpm.cmd'
       $backendPort = Get-ConfigValue 'SERVER_PORT' '18080'
       if (-not $backendPort) { $backendPort = '18080' }
+      $frontendPort = Get-ConfigValue 'FRONTEND_PORT' '5173'
+      if (-not $frontendPort) { $frontendPort = '5173' }
       $env:VITE_API_PROXY_TARGET = "http://127.0.0.1:$backendPort"
       Set-Location (Join-Path $repoRoot 'frontend')
-      Invoke-Checked $pnpm @('dev', '--host', '127.0.0.1', '--port', '5173', '--strictPort')
+      Invoke-Checked $pnpm @('dev', '--host', '127.0.0.1', '--port', $frontendPort, '--strictPort')
     }
     'check' {
       Use-Java25
@@ -196,6 +204,9 @@ try {
       Invoke-Checked (Join-Path $repoRoot 'gradlew.bat') @(':app:compileJava', '--no-daemon')
       Set-Location (Join-Path $repoRoot 'frontend')
       Invoke-Checked $pnpm @('run', 'build')
+    }
+    { $_ -in @('start', 'status', 'stop') } {
+      & (Join-Path $PSScriptRoot 'learning-services.ps1') -Command $Command
     }
   }
 } catch {

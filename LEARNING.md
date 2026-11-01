@@ -34,6 +34,23 @@ When you later need upstream changes, fetch and inspect them before merging or r
 
 Run commands from the repository root. `dev.cmd` starts its own PowerShell process and changes neither your machine-wide Java settings nor your saved PowerShell execution policy. Backend commands choose a local JDK 25 automatically. Set `LEARNING_JAVA_HOME` for the current terminal if you need to choose a particular installation.
 
+For everyday use, double-click `start.cmd`, or use one command in IDEA's terminal:
+
+```powershell
+.\dev.cmd start
+```
+
+The launcher initializes missing configuration, starts Docker Desktop if needed, waits for the dedicated infrastructure, and starts the backend and frontend in the background. It prints the application URL after health checks. Existing healthy IDEA instances are reused and remain under IDEA's control.
+
+```powershell
+.\dev.cmd status  # Health and whether each application is launcher-owned.
+.\dev.cmd stop    # Stop only launcher-owned applications; retain infrastructure/data.
+```
+
+Logs and process metadata are in the ignored `.learning/` directory. Check `backend.stdout.log`, `backend.stderr.log`, `frontend.stdout.log` and `frontend.stderr.log` if a background startup fails. If an occupied port does not pass this project's health check, inspect it rather than starting another copy. For debugging, stop the launcher-owned backend first, then use the IDEA run configuration. `stop` leaves external/IDEA processes alone.
+
+The separate commands below remain available when you want to inspect each step:
+
 ```powershell
 .\dev.cmd init
 .\dev.cmd doctor
@@ -59,6 +76,8 @@ After `init` and `infra`, use two terminals:
 - PostgreSQL: `localhost:15432`
 - Redis: `localhost:16379`
 - RustFS API: `localhost:19000`; console: <http://localhost:19001>
+
+The optional local `FRONTEND_PORT` setting changes the frontend's default port 5173. The backend port comes from `SERVER_PORT`; keep the frontend proxy and any separate IDEA run configuration consistent.
 
 The dedicated `compose.learning.yml` uses the Compose project `interview-guide-learning` and separate ports/data volumes. Its connection settings are stored in the ignored local `.env`. Runtime logs and other local state belong in the ignored `.learning/` directory.
 
