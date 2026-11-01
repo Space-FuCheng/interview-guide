@@ -71,13 +71,13 @@ After `init` and `infra`, use two terminals:
 .\dev.cmd frontend
 ```
 
-- Application: <http://localhost:5173>
+- Application: <http://localhost:15173>
 - Backend: <http://localhost:18080>
 - PostgreSQL: `localhost:15432`
 - Redis: `localhost:16379`
 - RustFS API: `localhost:19000`; console: <http://localhost:19001>
 
-The optional local `FRONTEND_PORT` setting changes the frontend's default port 5173. The backend port comes from `SERVER_PORT`; keep the frontend proxy and any separate IDEA run configuration consistent.
+This machine uses `FRONTEND_PORT=15173` in the ignored root `.env`: Windows reserves the range 5160–5259, including 5173. The launcher's default remains 5173 when no override is set. Follow the URL printed by the launcher; keep any separate frontend/IDEA configuration consistent. The backend port comes from `SERVER_PORT`.
 
 The dedicated `compose.learning.yml` uses the Compose project `interview-guide-learning` and separate ports/data volumes. Its connection settings are stored in the ignored local `.env`. Runtime logs and other local state belong in the ignored `.learning/` directory.
 
@@ -94,19 +94,41 @@ Open the repository root as a Gradle project. Set Project SDK and Gradle JVM to 
 
 Start Docker Desktop and run `.\dev.cmd infra` in IDEA's terminal. Then select the shared **Backend (Learning - No AI)** run configuration and click Run. This runs `:app:bootRun`, which loads the root `.env`, and supplies the same temporary speech startup arguments as the command-line launcher. Running `App.main` directly does not automatically load the root `.env`.
 
-Open another IDEA terminal and run `.\dev.cmd frontend`. The application is at <http://localhost:5173>, and the backend is at <http://localhost:18080>. Stop any previous instance before launching another one on the same port. The backend run configuration does not require an optional frontend plugin; the frontend uses the terminal.
+Open another IDEA terminal and run `.\dev.cmd frontend`. The application is at <http://localhost:15173>, and the backend is at <http://localhost:18080>. Stop any previous instance before launching another one on the same port. The backend run configuration does not require an optional frontend plugin; the frontend uses the terminal.
 
-After adding real model credentials, keep chat provider settings consistent with the database as described below. Remove the temporary speech arguments or create a normal `:app:bootRun` run configuration before studying startup speech configuration.
+The configuration name **Backend (Learning - No AI)** describes its temporary speech startup arguments. A local chat provider configured in the database still works. When adding a cloud provider, keep its settings consistent with the database as described below. Remove the temporary speech arguments or create a normal `:app:bootRun` run configuration before studying startup speech configuration.
 
 ## Starting without a model API key
 
 The development environment can start before a model key is available. `dev.cmd backend` disables opening-audio warmup and, only when the local cloud key is empty, supplies temporary startup-only ASR/TTS placeholder arguments. It does not write a fake key into `.env` or the database.
 
-You can inspect pages and APIs, work on React/TypeScript with fixture data, and run local tests. AI resume analysis, interview generation, embeddings and speech require valid providers and will not produce real AI results yet.
+You can inspect pages and APIs, work on React/TypeScript with fixture data, and run local tests. Real AI features need their corresponding valid providers. The local Qwen chat provider below is now configured without a cloud key; embeddings and speech remain unconfigured. Passing short chat tests does not prove that full resume analysis or multi-turn interviews work reliably.
 
-When ready, open <http://localhost:5173/settings>, edit the DashScope provider, save a valid chat model key and test the provider connection. The first startup can seed an empty provider in the database: changing only `.env` later does not overwrite that stored chat provider. Use the settings page to update an existing provider.
+For an optional cloud comparison later, open <http://localhost:15173/settings>, edit the DashScope provider, save a valid chat model key and test the provider connection. The current default chat provider is local Qwen. The first startup can seed an empty provider in the database: changing only `.env` later does not overwrite that stored chat provider. Use the settings page to update an existing provider.
 
 ASR/TTS are separate speech configurations. Configure them through the voice settings when you are ready to study speech. With this launcher, startup speech credentials follow `AI_BAILIAN_API_KEY`: set a valid shared DashScope key in your local `.env` and restart before relying on startup speech configuration. While that key is empty, the launcher deliberately supplies startup-only placeholders. A chat provider key saved in the database alone does not enable speech.
+
+## Local Qwen through Ollama (verified 2026-11-01)
+
+The existing Ollama service runs at `127.0.0.1:12500`, selected by this machine's `OLLAMA_HOST`; its models are stored under `D:\AI\Ollama\models`. Start Ollama before testing AI features. The project launcher does not start or manage this external service. No model download, Ollama global setting change or backend source change was needed.
+
+Open <http://localhost:15173/settings> to inspect the database-backed provider:
+
+| Setting | Current value |
+|---|---|
+| Provider ID / default chat | `qwen35-local` |
+| Base URL | `http://127.0.0.1:12500/v1` |
+| API key field | `ollama` — non-secret local placeholder required by the project |
+| Model | `qwen3.5:4b` |
+| Temperature | `0.2` |
+| Supports embedding | `false` |
+| Default embedding provider | `dashscope` — unchanged, without a usable cloud key |
+
+Verified using fictional short input: the cold direct call took about 36 seconds but exhausted its short output budget on reasoning without producing answer text; after increasing the test output budget, a warm direct call returned OK in 1.85 seconds. Other checks passed: project provider connection test, application AI interview-schedule parsing (18.81 seconds), and application JD structured parsing after schema validation/retry (22.61 seconds; six categories). The first JD attempt included Markdown backticks and failed schema validation; the project retry then succeeded. These are sample timings, not performance guarantees. The JD output associated PostgreSQL with the existing `mysql.md` reference: schema acceptance does not establish semantic accuracy.
+
+Ollama reported an active context length of **4096**, despite the model metadata advertising a much larger maximum. Input, tool descriptions, conversation history and output share the runtime budget; long inputs can be truncated. Full resumes and long multi-turn interviews have not been validated. Do not infer that they work from the short samples. No context tuning or explicit thinking control was applied; investigate an isolated model configuration and memory cost before changing `num_ctx` later.
+
+Use this 4B model to learn provider routing, prompts, structured output, timeouts and failure handling. Keep fixture-based tests for deterministic behavior, then evaluate quality with your own small dataset. RAG needs a separate compatible embedding model (current database expects 1024 dimensions); Qwen chat does not provide that configuration. ASR/TTS remain separate speech services. Do not mark RAG or voice lessons complete from these chat tests.
 
 ## First learning milestone
 

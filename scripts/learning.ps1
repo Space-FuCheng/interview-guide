@@ -180,7 +180,7 @@ try {
         $applicationArguments += ('--learning.launch-id=' + $env:INTERVIEW_GUIDE_LAUNCH_ID)
       }
       if ([string]::IsNullOrWhiteSpace((Get-ConfigValue 'AI_BAILIAN_API_KEY'))) {
-        Write-Host 'Starting without a model key. AI analysis and voice features remain unconfigured.'
+        Write-Host 'DashScope environment key is empty; using startup-only voice placeholders. Chat providers can be configured in app settings.'
         $applicationArguments += @(
           '--app.voice-interview.qwen.asr.api-key=local-unconfigured',
           '--app.voice-interview.qwen.tts.api-key=local-unconfigured'
