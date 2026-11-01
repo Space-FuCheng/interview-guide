@@ -69,6 +69,16 @@ The dedicated `compose.learning.yml` uses the Compose project `interview-guide-l
 
 Docker Desktop must be running for infrastructure commands. The frontend command requires installed dependencies (`pnpm.cmd install --frozen-lockfile` in `frontend/`). The `check` command verifies compilation and the frontend build; it does not claim that the full test suite passes. The existing backend test profile needs a separate configuration review before using `:app:test` as a learning checkpoint. Tests that require Redis also need the infrastructure running.
 
+## IntelliJ IDEA
+
+Open the repository root as a Gradle project. Set Project SDK and Gradle JVM to JDK 25, and use the Gradle Wrapper. On this machine, JDK 25 is installed under `C:\Program Files\Eclipse Adoptium\jdk-25.0.4.7-hotspot`; choose that installation through IDEA's SDK settings if it is not listed.
+
+Start Docker Desktop and run `.\dev.cmd infra` in IDEA's terminal. Then select the shared **Backend (Learning - No AI)** run configuration and click Run. This runs `:app:bootRun`, which loads the root `.env`, and supplies the same temporary speech startup arguments as the command-line launcher. Running `App.main` directly does not automatically load the root `.env`.
+
+Open another IDEA terminal and run `.\dev.cmd frontend`. The application is at <http://localhost:5173>, and the backend is at <http://localhost:18080>. Stop any previous instance before launching another one on the same port. The backend run configuration does not require an optional frontend plugin; the frontend uses the terminal.
+
+After adding real model credentials, keep chat provider settings consistent with the database as described below. Remove the temporary speech arguments or create a normal `:app:bootRun` run configuration before studying startup speech configuration.
+
 ## Starting without a model API key
 
 The development environment can start before a model key is available. `dev.cmd backend` disables opening-audio warmup and, only when the local cloud key is empty, supplies temporary startup-only ASR/TTS placeholder arguments. It does not write a fake key into `.env` or the database.

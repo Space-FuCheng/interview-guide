@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Backend (Learning - No AI)" type="GradleRunConfiguration" factoryName="Gradle">
+    <ExternalSystemSettings>
+      <option name="externalProjectPath" value="$PROJECT_DIR$" />
+      <option name="externalSystemIdString" value="GRADLE" />
+      <option name="scriptParameters" value="--args=&quot;--app.voice-interview.qwen.asr.api-key=local-unconfigured --app.voice-interview.qwen.tts.api-key=local-unconfigured --app.voice-interview.opening-audio-warmup-enabled=false&quot;" />
+      <option name="taskNames">
+        <list>
+          <option value=":app:bootRun" />
+        </list>
+      </option>
+    </ExternalSystemSettings>
+    <method v="2" />
+  </configuration>
+</component>
