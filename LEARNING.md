@@ -1,0 +1,84 @@
+# InterviewGuide learning workspace
+
+This workspace builds on [Snailclimb/interview-guide](https://github.com/Snailclimb/interview-guide). Preserve the upstream history, attribution and license, and use your commits to show the changes you actually implement and understand.
+
+## Git workflow
+
+- `origin` points to your GitHub fork, where you push your work.
+- `upstream` points to the original Snailclimb repository.
+- `learning/interview-guide` is the working branch for this learning project.
+
+Check the active branch and remotes before starting:
+
+```powershell
+git branch --show-current
+git remote -v
+git status
+```
+
+After completing and checking one small task, inspect and commit its specific files. For example, after implementing an upload page:
+
+```powershell
+git diff
+git add frontend/src/pages/UploadPage.tsx
+git diff --cached
+git commit -m "feat: implement single-file resume upload"
+git push -u origin learning/interview-guide
+```
+
+Stage the files belonging to that task. Keep `.env`, API keys, local data, logs and dependency folders out of commits. Record real improvements such as a page, a failure case or a meaningful test; do not create artificial activity-only commits.
+
+When you later need upstream changes, fetch and inspect them before merging or rebasing. Keep the current learning baseline stable while finishing a task.
+
+## Local environment
+
+Run commands from the repository root. `dev.cmd` starts its own PowerShell process and changes neither your machine-wide Java settings nor your saved PowerShell execution policy. Backend commands choose a local JDK 25 automatically. Set `LEARNING_JAVA_HOME` for the current terminal if you need to choose a particular installation.
+
+```powershell
+.\dev.cmd init
+.\dev.cmd doctor
+.\dev.cmd infra
+```
+
+On a fresh clone, `init` creates the ignored local `.env` from `.env.learning.example`, generates local random credentials and an encryption key, and leaves the model key empty. It also creates the frontend proxy configuration if missing. Existing configuration files are preserved, keeping their credentials consistent with persistent local data. `init` requires neither Java nor Docker.
+
+After `init` and `infra`, use two terminals:
+
+```powershell
+# Terminal 1: Java backend; Ctrl+C stops it.
+.\dev.cmd backend
+```
+
+```powershell
+# Terminal 2: React frontend; Ctrl+C stops it.
+.\dev.cmd frontend
+```
+
+- Application: <http://localhost:5173>
+- Backend: <http://localhost:18080>
+- PostgreSQL: `localhost:15432`
+- Redis: `localhost:16379`
+- RustFS API: `localhost:19000`; console: <http://localhost:19001>
+
+The dedicated `compose.learning.yml` uses the Compose project `interview-guide-learning` and separate ports/data volumes. Its connection settings are stored in the ignored local `.env`. Runtime logs and other local state belong in the ignored `.learning/` directory.
+
+```powershell
+.\dev.cmd check       # Compile Java, then run the TypeScript/Vite build.
+.\dev.cmd stop-infra  # Stop only this project's infrastructure; retain its data.
+```
+
+Docker Desktop must be running for infrastructure commands. The frontend command requires installed dependencies (`pnpm.cmd install --frozen-lockfile` in `frontend/`). The `check` command verifies compilation and the frontend build; it does not claim that the full test suite passes. The existing backend test profile needs a separate configuration review before using `:app:test` as a learning checkpoint. Tests that require Redis also need the infrastructure running.
+
+## Starting without a model API key
+
+The development environment can start before a model key is available. `dev.cmd backend` disables opening-audio warmup and, only when the local cloud key is empty, supplies temporary startup-only ASR/TTS placeholder arguments. It does not write a fake key into `.env` or the database.
+
+You can inspect pages and APIs, work on React/TypeScript with fixture data, and run local tests. AI resume analysis, interview generation, embeddings and speech require valid providers and will not produce real AI results yet.
+
+When ready, open <http://localhost:5173/settings>, edit the DashScope provider, save a valid chat model key and test the provider connection. The first startup can seed an empty provider in the database: changing only `.env` later does not overwrite that stored chat provider. Use the settings page to update an existing provider.
+
+ASR/TTS are separate speech configurations. Configure them through the voice settings when you are ready to study speech. With this launcher, startup speech credentials follow `AI_BAILIAN_API_KEY`: set a valid shared DashScope key in your local `.env` and restart before relying on startup speech configuration. While that key is empty, the launcher deliberately supplies startup-only placeholders. A chat provider key saved in the database alone does not enable speech.
+
+## First learning milestone
+
+Build and explain one complete flow: select a resume, upload it, track analysis state, display the result, and reopen its history. Start with typed fixture data and a single file; then connect the real APIs. For each task, write down the behavior, implement it, check success and failure paths, and make one focused commit with a short explanation of your decisions.
