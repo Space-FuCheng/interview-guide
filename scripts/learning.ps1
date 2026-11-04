@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('help', 'init', 'doctor', 'infra', 'stop-infra', 'backend', 'frontend', 'check', 'start', 'status', 'stop')]
+  [ValidateSet('help', 'init', 'doctor', 'infra', 'stop-infra', 'backend', 'frontend', 'check', 'start', 'status', 'stop', 'stop-all')]
   [string]$Command = 'help'
 )
 
@@ -118,6 +118,7 @@ try {
       Write-Host '  .\dev.cmd start       Start infrastructure, backend and frontend in the background'
       Write-Host '  .\dev.cmd status      Show application health and launcher ownership'
       Write-Host '  .\dev.cmd stop        Stop only applications started by this launcher'
+      Write-Host '  .\dev.cmd stop-all    Stop learning services and launcher-started Docker when safe'
       Write-Host '  .\dev.cmd init        Create local configuration if it is missing'
       Write-Host '  .\dev.cmd doctor      Check tools and configuration presence'
       Write-Host '  .\dev.cmd infra       Start the isolated learning infrastructure'
@@ -205,7 +206,7 @@ try {
       Set-Location (Join-Path $repoRoot 'frontend')
       Invoke-Checked $pnpm @('run', 'build')
     }
-    { $_ -in @('start', 'status', 'stop') } {
+    { $_ -in @('start', 'status', 'stop', 'stop-all') } {
       & (Join-Path $PSScriptRoot 'learning-services.ps1') -Command $Command
     }
   }

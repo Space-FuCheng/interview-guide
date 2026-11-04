@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('start', 'status', 'stop')]
+  [ValidateSet('start', 'status', 'stop', 'stop-all')]
   [string]$Command = 'status'
 )
 
@@ -96,20 +96,55 @@ function Invoke-Learning([string]$Action) {
 
 function Test-Docker {
   try {
-    & docker.exe info --format '{{.ServerVersion}}' 2>$null | Out-Null
-    return ($LASTEXITCODE -eq 0)
+    if (-not (Get-Process -Name 'Docker Desktop', 'com.docker.backend' -ErrorAction SilentlyContinue)) { return $false }
+    $info = New-Object Diagnostics.ProcessStartInfo
+    $info.FileName = (Get-Command docker.exe -ErrorAction Stop).Source
+    # Compose needs container listing, which may fail briefly after Docker info succeeds.
+    $info.Arguments = 'ps --all --quiet --filter label=com.docker.compose.project=interview-guide-learning'
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::Start($info)
+    if (-not $process.WaitForExit(5000)) { $process.Kill(); return $false }
+    return ($process.ExitCode -eq 0)
   } catch { return $false }
 }
 
+function Test-DockerWslRunning {
+  $previousEncoding = [Console]::OutputEncoding
+  try {
+    [Console]::OutputEncoding = [Text.Encoding]::Unicode
+    $names = @(& wsl.exe --list --running --quiet 2>$null)
+    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect WSL state.' }
+    return [bool]($names | Where-Object { (($_ -replace "`0", '').Trim()) -eq 'docker-desktop' })
+  } finally { [Console]::OutputEncoding = $previousEncoding }
+}
+
 function Ensure-Docker {
-  if (Test-Docker) { return }
+  if (Test-Docker) {
+    Start-Sleep -Seconds 2
+    if (Test-Docker) { return }
+  }
+  if (-not (Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue)) {
+    $script:state | Add-Member -NotePropertyName DockerStartedByLauncher -NotePropertyValue $true -Force
+    $script:state | Add-Member -NotePropertyName DockerWslWasRunning -NotePropertyValue (Test-DockerWslRunning) -Force
+    Save-State
+  }
   $desktop = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
   if (-not (Test-Path -LiteralPath $desktop)) { throw 'Docker Desktop was not found. Install or start Docker, then retry.' }
-  Write-Host 'Starting Docker Desktop...'
-  Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
+  if (-not (Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue)) {
+    Write-Host 'Starting Docker Desktop...'
+    Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
+  } else {
+    Write-Host 'Waiting for Docker Desktop to be ready...'
+  }
   $deadline = [DateTime]::UtcNow.AddSeconds(90)
   while ([DateTime]::UtcNow -lt $deadline) {
-    if (Test-Docker) { return }
+    if (Test-Docker) {
+      Start-Sleep -Seconds 2
+      if (Test-Docker) { return }
+    }
     Start-Sleep -Seconds 3
   }
   throw 'Docker is not ready after 90 seconds. Check Docker Desktop and retry.'
@@ -246,6 +281,39 @@ try {
     }
     'status' { Show-Status }
     'stop' { Stop-OwnedProcesses; Show-Status }
+    'stop-all' {
+      Stop-OwnedProcesses
+      if (Test-Docker) {
+        Invoke-Learning 'stop-infra'
+        $remainingContainers = @(& docker.exe ps -q)
+        if ($LASTEXITCODE -ne 0) { throw 'Could not inspect Docker containers.' }
+      } else {
+        $remainingContainers = @()
+        Write-Host 'Docker engine is not running; learning containers are already stopped.'
+      }
+      $dockerCli = Join-Path $env:ProgramFiles 'Docker\Docker\DockerCli.exe'
+      if ($script:state.DockerStartedByLauncher -and $remainingContainers.Count -eq 0 -and (Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue)) {
+        if (-not (Test-Path -LiteralPath $dockerCli)) { throw 'DockerCli.exe was not found; Docker Desktop could not be stopped.' }
+        & $dockerCli -Shutdown
+        if ($LASTEXITCODE -ne 0) { throw 'Docker Desktop shutdown failed.' }
+        $deadline = [DateTime]::UtcNow.AddSeconds(60)
+        while ((Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Seconds 1 }
+        if (Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue) { throw 'Docker Desktop did not exit within 60 seconds.' }
+        Write-Host 'Docker Desktop stopped.'
+      } else {
+        Write-Host 'Docker Desktop retained if it was already running or other containers are active.'
+      }
+      if ($script:state.DockerStartedByLauncher -and -not $script:state.DockerWslWasRunning -and $remainingContainers.Count -eq 0 -and -not (Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue) -and (Test-DockerWslRunning)) {
+        & wsl.exe --terminate docker-desktop
+        if ($LASTEXITCODE -ne 0) { throw 'Could not stop the Docker WSL distribution.' }
+        Write-Host 'Docker WSL distribution stopped.'
+      }
+      if ($script:state.DockerStartedByLauncher -and $remainingContainers.Count -eq 0 -and -not (Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue)) {
+        $script:state.DockerStartedByLauncher = $false
+        Save-State
+      }
+      Write-Host 'Other WSL distributions are retained.'
+    }
   }
 } finally {
   if ($locked) { $mutex.ReleaseMutex() }
