@@ -187,7 +187,9 @@ try {
           '--app.voice-interview.qwen.tts.api-key=local-unconfigured'
         )
       }
-      Invoke-Checked (Join-Path $repoRoot 'gradlew.bat') @(':app:bootRun', ('--args=' + ($applicationArguments -join ' ')))
+      $gradleArguments = @(':app:bootRun', ('--args=' + ($applicationArguments -join ' ')))
+      if ($env:INTERVIEW_GUIDE_LAUNCH_ID) { $gradleArguments += '-PlearningDebug' }
+      Invoke-Checked (Join-Path $repoRoot 'gradlew.bat') $gradleArguments
     }
     'frontend' {
       $pnpm = Require-Command 'pnpm.cmd'

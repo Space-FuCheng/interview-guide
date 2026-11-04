@@ -166,8 +166,10 @@ function Start-ServiceProcess([string]$Service, [int]$Port) {
   if (Test-Health $Service) {
     $ownership = if ($old -and (Test-Identity $old.Listener)) { 'launcher-owned' } else { 'existing process; not managed' }
     Write-Host "$Service is already healthy ($ownership)."
+    if ($Service -eq 'Backend') { Write-Host 'Existing backend was reused; check its own debug configuration before attaching.' }
     return
   }
+  if ($Service -eq 'Backend' -and (Test-Port 5005)) { throw 'Backend debug port 5005 is already in use. Stop the other debugger target and retry.' }
   if (Test-Port $Port) { throw "$Service port $Port is occupied but its health check failed. Inspect that process; the launcher will not stop it." }
   if ($old -and (Test-Identity $old.Root)) { throw "$Service is already starting or unhealthy. Inspect its logs or run .\dev.cmd stop before retrying." }
   $launchId = [guid]::NewGuid().ToString('N')
@@ -216,6 +218,7 @@ function Show-Status {
   }
   Write-Host "Application: http://localhost:$frontendPort"
   Write-Host "Backend: http://localhost:$backendPort"
+  Write-Host 'Backend debugger: 127.0.0.1:5005 (attach from IDEA)'
   Write-Host "Logs/state: $stateDirectory"
 }
 

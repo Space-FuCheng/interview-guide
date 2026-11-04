@@ -175,6 +175,9 @@ tasks.named('bootRun') {
             '-Dstderr.encoding=UTF-8',
             '--enable-native-access=ALL-UNNAMED'
     ]
+    if (providers.gradleProperty('learningDebug').isPresent()) {
+        jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:5005'
+    }
 
     // 加载 .env 文件
     def envFile = rootProject.file('.env')
