@@ -2,6 +2,9 @@ import ResumeReport from '../components/ResumeReport'
 import {AnalysisPageState, ResumeAnalysisResponse} from "../types/resumeReport.ts";
 import {ChangeEvent, useState} from "react";
 import {RESUME_FILE_POLICY, validateUploadFile} from "../utils/batchUpload.ts";
+import {resumeApi} from '../api/resume'
+import { historyApi } from '../api/history';
+import { getErrorMessage } from '../api/request';
 
 
 export default function ResumeReportPractice() {
@@ -26,6 +29,19 @@ export default function ResumeReportPractice() {
     const [file, setFile] = useState<File | null>(null);
     const [uploadError, setUploadError] = useState<string>('');
     const [isUploading, setIsUploading] = useState(false);
+    const checkHealth = async () => {
+        const res = await resumeApi.healthCheck()
+        console.log('健康检查结果', res)
+    }
+
+    const checkRequestError = async () => {
+        try {
+            const result = await historyApi.getResumeDetail(0);
+            console.log('查询成功', result);
+        } catch (error: unknown) {
+            console.log('查询失败', getErrorMessage(error));
+        }
+    };
 
     const uploadResume = (event: ChangeEvent<HTMLInputElement>) => {
         console.log(event);
@@ -44,25 +60,28 @@ export default function ResumeReportPractice() {
         setUploadError('')
     }
     const upload = async () => {
-        // const res = await axios.get('http://www.baidu.com')
-        // if (res.status === 200) {
-        //     setInterval(()=>console.log('waiting'), 1000);
-        //     setPageState('SUCCESS')
-        // } else {
-        //     setPageState('FAIL')
-        // }
         if (!file) {
             setUploadError('选有效文件')
             return;
         }
-        setPageState('LOADING');
+        setUploadError('');
+        // setPageState('LOADING');
         setIsUploading(true);
+        try {
+            const res = await resumeApi.uploadAndAnalyze(file)
+            console.log(res)
+        } catch (error : unknown) {
+            setUploadError(getErrorMessage(error))
+            console.log(error)
+        } finally {
+            setIsUploading(false)
+        }
 
-        await new Promise((resolve) => {
-            setTimeout(resolve, 3000);
-        })
-        setPageState('SUCCESS');
-        setIsUploading(false);
+        // await new Promise((resolve) => {
+        //     setTimeout(resolve, 3000);
+        // })
+        // setPageState('SUCCESS');
+        // setIsUploading(false);
     }
 
 
@@ -93,6 +112,11 @@ export default function ResumeReportPractice() {
         <p>上传错误：{uploadError}</p>
 
         <button disabled={isUploading} onClick={upload}>上传</button>
+        <br/>
 
+
+        <button  onClick={checkHealth}>检测健康</button>
+
+        <button onClick={checkRequestError}>测试查询失败</button>
     </main>;
 }

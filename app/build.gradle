@@ -176,7 +176,7 @@ tasks.named('bootRun') {
             '--enable-native-access=ALL-UNNAMED'
     ]
     if (providers.gradleProperty('learningDebug').isPresent()) {
-        jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:5005'
+        jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:15005'
     }
 
     // 加载 .env 文件
