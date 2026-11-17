@@ -1,10 +1,10 @@
 import ResumeReport from '../components/ResumeReport'
 import {AnalysisPageState, ResumeAnalysisResponse} from "../types/resumeReport.ts";
-import {ChangeEvent, useState} from "react";
 import {RESUME_FILE_POLICY, validateUploadFile} from "../utils/batchUpload.ts";
 import {resumeApi} from '../api/resume'
-import { historyApi } from '../api/history';
-import { getErrorMessage } from '../api/request';
+import {historyApi} from '../api/history';
+import {getErrorMessage} from '../api/request';
+import {ChangeEvent, useEffect, useRef, useState} from 'react';
 
 
 export default function ResumeReportPractice() {
@@ -59,22 +59,44 @@ export default function ResumeReportPractice() {
         setFile(selectedFile)
         setUploadError('')
     }
+
+    const versionRef = useRef<number>(0)
     const upload = async () => {
         if (!file) {
             setUploadError('选有效文件')
             return;
         }
+        stopPoll()
+        const version = versionRef.current
         setUploadError('');
         // setPageState('LOADING');
         setIsUploading(true);
         try {
             const res = await resumeApi.uploadAndAnalyze(file)
+            if (version !== versionRef.current) {
+                console.log('版本不对', version, versionRef);
+                return;
+            }
             console.log(res)
-        } catch (error : unknown) {
+            const resumeId = res.resume?.id ?? res.storage.resumeId;
+
+            if (resumeId === undefined) {
+                setUploadError('上传响应缺少简历 ID，无法查询详情');
+                return;
+            }
+
+
+            await pollResume(resumeId,version)
+
+        } catch (error: unknown) {
+            if (version !== versionRef.current) return;
             setUploadError(getErrorMessage(error))
             console.log(error)
         } finally {
-            setIsUploading(false)
+            if (version === versionRef.current) {
+                setIsUploading(false)
+            }
+
         }
 
         // await new Promise((resolve) => {
@@ -82,6 +104,53 @@ export default function ResumeReportPractice() {
         // })
         // setPageState('SUCCESS');
         // setIsUploading(false);
+    }
+
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const controllerRef = useRef<AbortController | null>(null);
+
+    const stopPoll = () => {
+        versionRef.current += 1;
+        controllerRef.current?.abort()
+        controllerRef.current = null
+        if (timerRef.current !== null) {
+            clearTimeout(timerRef.current)
+            timerRef.current = null
+        }
+    }
+
+    useEffect(() => {
+        return () => {
+            stopPoll()
+
+        }
+    }, [])
+
+    const pollResume = async (resumeId: number,version: number) => {
+        if (version !== versionRef.current) return;
+        const controller = new AbortController()
+        controllerRef.current = controller
+
+        try {
+
+            const detail = await historyApi.getResumeDetail(resumeId, controller.signal);
+            if (controller.signal.aborted || version !== versionRef.current) return;
+            setUploadError('')
+            console.log('简历详情', detail);
+            if (detail.analyzeStatus === "PENDING" ||
+                detail.analyzeStatus === "PROCESSING") {
+                timerRef.current = setTimeout(() => {
+                    pollResume(resumeId,version)
+                }, 2000)
+            }
+        } catch (error: unknown) {
+            if (controller.signal.aborted || version !== versionRef.current) return;
+            setUploadError('状态暂时无法刷新：' + getErrorMessage(error));
+            console.log('状态无法刷新', error)
+            timerRef.current = setTimeout(() => {
+                void pollResume(resumeId,version);
+            }, 2000);
+        }
     }
 
 
@@ -115,7 +184,7 @@ export default function ResumeReportPractice() {
         <br/>
 
 
-        <button  onClick={checkHealth}>检测健康</button>
+        <button onClick={checkHealth}>检测健康</button>
 
         <button onClick={checkRequestError}>测试查询失败</button>
     </main>;
